@@ -6,9 +6,7 @@ import datetime
 # Configuración de página
 st.set_page_config(page_title="Quiniela Dinastía Barrios", page_icon="⚽", layout="centered")
 
-# --- LÓGICA DE TIEMPO (Sin pytz para evitar errores) ---
-# Usamos el reloj del servidor directamente.
-# El sistema abre hoy 14 a las 22:00 (10 PM)
+# --- LÓGICA DE TIEMPO ---
 inicio_periodo = datetime.datetime(2026, 6, 14, 22, 0)
 fin_periodo = datetime.datetime(2026, 6, 15, 14, 0)
 ahora = datetime.datetime.now()
@@ -127,8 +125,3 @@ else:
                 datos_a_enviar = {
                     "nombre": nombre, "grupo_a": ", ".join(respuestas_grupos["Grupo A"]), "grupo_b": ", ".join(respuestas_grupos["Grupo B"]), "grupo_c": ", ".join(respuestas_grupos["Grupo C"]), "grupo_d": ", ".join(respuestas_grupos["Grupo D"]), "grupo_e": ", ".join(respuestas_grupos["Grupo E"]), "grupo_f": ", ".join(respuestas_grupos["Grupo F"]), "grupo_g": ", ".join(respuestas_grupos["Grupo G"]), "grupo_h": ", ".join(respuestas_grupos["Grupo H"]), "grupo_i": ", ".join(respuestas_grupos["Grupo I"]), "grupo_j": ", ".join(respuestas_grupos["Grupo J"]), "grupo_k": ", ".join(respuestas_grupos["Grupo K"]), "grupo_l": ", ".join(respuestas_grupos["Grupo L"]), "octavos": json.dumps(todo_el_camino, ensure_ascii=False)
                 }
-                try:
-                    envio = requests.post(URL_CONTROL_HOJA, data=datos_a_enviar)
-                    st.balloons()
-                    st.success(f"¡Perfecto {nombre}! Tus predicciones se guardaron con éxito.")
-                except: st.error("Error en la conexión con la base de datos.")
