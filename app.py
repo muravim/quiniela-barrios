@@ -6,13 +6,12 @@ import datetime
 # Configuración de página
 st.set_page_config(page_title="Quiniela Dinastía Barrios", page_icon="⚽", layout="centered")
 
-# --- LÓGICA DE TIEMPO (CORREGIDA) ---
-# Usamos hora local del servidor sin librerías externas para evitar errores
-ahora = datetime.datetime.now()
+# --- LÓGICA DE TIEMPO (Sin pytz para evitar errores) ---
+# Usamos el reloj del servidor directamente.
 # El sistema abre hoy 14 a las 22:00 (10 PM)
-# Ajuste: Si el servidor está en UTC, comparamos con la hora actual UTC
 inicio_periodo = datetime.datetime(2026, 6, 14, 22, 0)
 fin_periodo = datetime.datetime(2026, 6, 15, 14, 0)
+ahora = datetime.datetime.now()
 
 URL_CONTROL_HOJA = "https://script.google.com/macros/s/AKfycbzCQ5FcILnKcosplY2PASwTLeLko9YJRrAC602PkBJ1ojdg_cSEUPJsFAATf5XM0ZRRMw/exec"
 
@@ -31,10 +30,7 @@ GRUPOS_MUNDIAL = {
     "Grupo L": ["Inglaterra", "Croacia", "Ghana", "Panamá"]
 }
 
-PARTIDOS_OCTAVOS_TEORICOS = [
-    ("1A", "2B"), ("1C", "2D"), ("1E", "2F"), ("1G", "2H"),
-    ("1I", "2J"), ("1K", "2L"), ("1B", "2A"), ("1D", "2C")
-]
+PARTIDOS_OCTAVOS_TEORICOS = [("1A", "2B"), ("1C", "2D"), ("1E", "2F"), ("1G", "2H"), ("1I", "2J"), ("1K", "2L"), ("1B", "2A"), ("1D", "2C")]
 CRUCES_CUARTOS = [(0, 1), (2, 3), (4, 5), (6, 7)]
 CRUCES_SEMIS = [(0, 1), (2, 3)]
 
@@ -47,7 +43,7 @@ if ahora < inicio_periodo:
 elif ahora > fin_periodo:
     st.error("⚠️ El plazo para ingresar quinielas ha finalizado. ¡Gracias por participar!")
 else:
-    # --- FORMULARIO ORIGINAL ---
+    # --- FORMULARIO ---
     st.write("---")
     nombre = st.text_input("👤 Ingrese su Nombre y Apellido:", placeholder="Ej. Carlos Barrios").strip().title()
     
@@ -55,7 +51,6 @@ else:
         st.success(f"¡Hola {nombre}! Completa tus pronósticos:")
         st.header("📋 Fase de Grupos")
         respuestas_grupos = {}
-        
         for grupo, equipos in GRUPOS_MUNDIAL.items():
             with st.expander(f"⚽ {grupo}"):
                 c1, c2 = st.columns(2)
@@ -66,8 +61,7 @@ else:
         if len(respuestas_grupos) == 12:
             st.write("---")
             st.header("🥅 Octavos de Final")
-            ganadores_octavos = []
-            pronosticos_octavos = {}
+            ganadores_octavos, pronosticos_octavos = [], {}
             for i, (pos1, pos2) in enumerate(PARTIDOS_OCTAVOS_TEORICOS, 1):
                 eq1 = respuestas_grupos[f"Grupo {pos1[1]}"][0] if pos1[0] == "1" else respuestas_grupos[f"Grupo {pos1[1]}"][1]
                 eq2 = respuestas_grupos[f"Grupo {pos2[1]}"][0] if pos2[0] == "1" else respuestas_grupos[f"Grupo {pos2[1]}"][1]
@@ -84,11 +78,9 @@ else:
 
             st.write("---")
             st.header("🏆 Cuartos de Final")
-            ganadores_cuartos = []
-            pronosticos_cuartos = {}
+            ganadores_cuartos, pronosticos_cuartos = [], {}
             for i, (idx1, idx2) in enumerate(CRUCES_CUARTOS, 1):
-                eq1 = ganadores_octavos[idx1]
-                eq2 = ganadores_octavos[idx2]
+                eq1, eq2 = ganadores_octavos[idx1], ganadores_octavos[idx2]
                 st.markdown(f"**Cuartos {i}:** {eq1} vs {eq2}")
                 c1, c2, c3 = st.columns([2, 2, 3])
                 with c1: g1 = st.number_input(f"Goles {eq1}", min_value=0, step=1, key=f"C_g1_{i}")
@@ -102,11 +94,9 @@ else:
 
             st.write("---")
             st.header("🔥 Semifinales")
-            ganadores_semis = []
-            pronosticos_semis = {}
+            ganadores_semis, pronosticos_semis = [], {}
             for i, (idx1, idx2) in enumerate(CRUCES_SEMIS, 1):
-                eq1 = ganadores_cuartos[idx1]
-                eq2 = ganadores_cuartos[idx2]
+                eq1, eq2 = ganadores_cuartos[idx1], ganadores_cuartos[idx2]
                 st.markdown(f"**Semifinal {i}:** {eq1} vs {eq2}")
                 c1, c2, c3 = st.columns([2, 2, 3])
                 with c1: g1 = st.number_input(f"Goles {eq1}", min_value=0, step=1, key=f"S_g1_{i}")
@@ -120,8 +110,7 @@ else:
 
             st.write("---")
             st.header("👑 LA GRAN FINAL")
-            eq1 = ganadores_semis[0]
-            eq2 = ganadores_semis[1]
+            eq1, eq2 = ganadores_semis[0], ganadores_semis[1]
             st.markdown(f"**FINALÍSIMA:** {eq1} vs {eq2}")
             c1, c2, c3 = st.columns([2, 2, 3])
             with c1: g1 = st.number_input(f"Goles {eq1}", min_value=0, step=1, key=f"F_g1")
@@ -133,4 +122,13 @@ else:
             st.success(f"🏆 Tu Campeón es: **{campeon}**")
 
             st.write("---")
-            if st.button("🚀 ENVIAR QUINIELA A LA BASE
+            if st.button("🚀 ENVIAR QUINIELA A LA BASE DE DATOS"):
+                todo_el_camino = {"Octavos": pronosticos_octavos, "Cuartos": pronosticos_cuartos, "Semifinales": pronosticos_semis, "Final": f"{eq1} ({g1}) vs {eq2} ({g2})", "Campeon": campeon}
+                datos_a_enviar = {
+                    "nombre": nombre, "grupo_a": ", ".join(respuestas_grupos["Grupo A"]), "grupo_b": ", ".join(respuestas_grupos["Grupo B"]), "grupo_c": ", ".join(respuestas_grupos["Grupo C"]), "grupo_d": ", ".join(respuestas_grupos["Grupo D"]), "grupo_e": ", ".join(respuestas_grupos["Grupo E"]), "grupo_f": ", ".join(respuestas_grupos["Grupo F"]), "grupo_g": ", ".join(respuestas_grupos["Grupo G"]), "grupo_h": ", ".join(respuestas_grupos["Grupo H"]), "grupo_i": ", ".join(respuestas_grupos["Grupo I"]), "grupo_j": ", ".join(respuestas_grupos["Grupo J"]), "grupo_k": ", ".join(respuestas_grupos["Grupo K"]), "grupo_l": ", ".join(respuestas_grupos["Grupo L"]), "octavos": json.dumps(todo_el_camino, ensure_ascii=False)
+                }
+                try:
+                    envio = requests.post(URL_CONTROL_HOJA, data=datos_a_enviar)
+                    st.balloons()
+                    st.success(f"¡Perfecto {nombre}! Tus predicciones se guardaron con éxito.")
+                except: st.error("Error en la conexión con la base de datos.")
