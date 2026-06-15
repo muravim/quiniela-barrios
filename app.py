@@ -1,9 +1,17 @@
-
 import streamlit as st
 import requests
 import json
+import datetime
+import pytz
 
+# Configuración de página
 st.set_page_config(page_title="Quiniela Dinastía Barrios", page_icon="⚽", layout="centered")
+
+# --- CONTROL DE TIEMPO ---
+vzla_tz = pytz.timezone('America/Caracas')
+inicio_periodo = datetime.datetime(2026, 6, 14, 22, 0, tzinfo=vzla_tz)
+fin_periodo = datetime.datetime(2026, 6, 15, 14, 0, tzinfo=vzla_tz)
+ahora = datetime.datetime.now(vzla_tz)
 
 URL_CONTROL_HOJA = "https://script.google.com/macros/s/AKfycbzCQ5FcILnKcosplY2PASwTLeLko9YJRrAC602PkBJ1ojdg_cSEUPJsFAATf5XM0ZRRMw/exec"
 
@@ -29,17 +37,16 @@ PARTIDOS_OCTAVOS_TEORICOS = [
 CRUCES_CUARTOS = [(0, 1), (2, 3), (4, 5), (6, 7)]
 CRUCES_SEMIS = [(0, 1), (2, 3)]
 
-try:
-    estado_actual = requests.get(URL_CONTROL_HOJA).json().get("Estado_Quiniela", "ACTIVO").upper()
-except:
-    estado_actual = "ACTIVO"
-
 st.title("🏆 Quiniela FIFA 2026")
 st.subheader("💥 Dinastía Barrios 💥")
 
-if estado_actual == "CERRADO":
-    st.error("🛑 ¡Lo siento! El proceso de registro para la Quiniela ha terminado.")
+# --- LÓGICA DE TIEMPO ---
+if ahora < inicio_periodo:
+    st.warning("⏳ El sistema aún no está abierto. Podrás ingresar tus datos a partir de hoy a las 10:00 PM.")
+elif ahora > fin_periodo:
+    st.error("⚠️ El plazo para ingresar quinielas ha finalizado. ¡Gracias por participar!")
 else:
+    # --- FORMULARIO ORIGINAL ---
     st.write("---")
     nombre = st.text_input("👤 Ingrese su Nombre y Apellido:", placeholder="Ej. Carlos Barrios").strip().title()
     
