@@ -2,16 +2,17 @@ import streamlit as st
 import requests
 import json
 import datetime
-import pytz
 
 # Configuración de página
 st.set_page_config(page_title="Quiniela Dinastía Barrios", page_icon="⚽", layout="centered")
 
-# --- CONTROL DE TIEMPO ---
-vzla_tz = pytz.timezone('America/Caracas')
-inicio_periodo = datetime.datetime(2026, 6, 14, 22, 0, tzinfo=vzla_tz)
-fin_periodo = datetime.datetime(2026, 6, 15, 14, 0, tzinfo=vzla_tz)
-ahora = datetime.datetime.now(vzla_tz)
+# --- LÓGICA DE TIEMPO (CORREGIDA) ---
+# Usamos hora local del servidor sin librerías externas para evitar errores
+ahora = datetime.datetime.now()
+# El sistema abre hoy 14 a las 22:00 (10 PM)
+# Ajuste: Si el servidor está en UTC, comparamos con la hora actual UTC
+inicio_periodo = datetime.datetime(2026, 6, 14, 22, 0)
+fin_periodo = datetime.datetime(2026, 6, 15, 14, 0)
 
 URL_CONTROL_HOJA = "https://script.google.com/macros/s/AKfycbzCQ5FcILnKcosplY2PASwTLeLko9YJRrAC602PkBJ1ojdg_cSEUPJsFAATf5XM0ZRRMw/exec"
 
@@ -132,17 +133,4 @@ else:
             st.success(f"🏆 Tu Campeón es: **{campeon}**")
 
             st.write("---")
-            if st.button("🚀 ENVIAR QUINIELA A LA BASE DE DATOS", use_container_width=True):
-                todo_el_camino = {"Octavos": pronosticos_octavos, "Cuartos": pronosticos_cuartos, "Semifinales": pronosticos_semis, "Final": f"{eq1} ({g1}) vs {eq2} ({g2})", "Campeon": campeon}
-                datos_a_enviar = {
-                    "nombre": nombre, "grupo_a": ", ".join(respuestas_grupos["Grupo A"]), "grupo_b": ", ".join(respuestas_grupos["Grupo B"]), "grupo_c": ", ".join(respuestas_grupos["Grupo C"]), "grupo_d": ", ".join(respuestas_grupos["Grupo D"]), "grupo_e": ", ".join(respuestas_grupos["Grupo E"]), "grupo_f": ", ".join(respuestas_grupos["Grupo F"]), "grupo_g": ", ".join(respuestas_grupos["Grupo G"]), "grupo_h": ", ".join(respuestas_grupos["Grupo H"]), "grupo_i": ", ".join(respuestas_grupos["Grupo I"]), "grupo_j": ", ".join(respuestas_grupos["Grupo J"]), "grupo_k": ", ".join(respuestas_grupos["Grupo K"]), "grupo_l": ", ".join(respuestas_grupos["Grupo L"]), "octavos": json.dumps(todo_el_camino, ensure_ascii=False)
-                }
-                try:
-                    envio = requests.post(URL_CONTROL_HOJA, data=datos_a_enviar)
-                    if envio.json().get("status") == "success":
-                        st.balloons()
-                        st.success(f"¡Perfecto {nombre}! Tus predicciones se guardaron con éxito.")
-                    else: st.error("Hubo un problema al procesar los datos.")
-                except: st.error("Error en la conexión con la base de datos.")
-        else:
-            st.info("💡 Por favor, selecciona los 2 clasificados en cada uno de los 12 grupos de arriba para desbloquear las fases finales.")
+            if st.button("🚀 ENVIAR QUINIELA A LA BASE
