@@ -15,7 +15,15 @@ GRUPOS = {
 }
 
 st.title("⚽ Quiniela Mundial 2026")
-nombre = st.text_input("Ingrese su nombre para cargar progreso:").strip().title()
+nombre = st.text_input("Ingrese su nombre para cargar/continuar:").strip().title()
+
+# Carga de datos si existen
+if nombre:
+    res = requests.get(URL, params={"nombre": nombre})
+    if res.status_code == 200:
+        data = res.json()
+        if data.get("status") == "success":
+            st.success("Progreso cargado con éxito.")
 
 # 1. Fase de Grupos
 res_g = {}
@@ -27,7 +35,7 @@ for g, eq in GRUPOS.items():
         o2 = c2.selectbox(f"2do {g}", [e for e in eq if e != o1], key=f"g{g}_2")
         res_g[g] = {"1": o1, "2": o2}
 
-# 2. Mejores Terceros
+# 2. Selección de mejores terceros
 st.subheader("🥉 Selección de los 8 mejores terceros")
 ya_clasificados = [res_g[g]["1"] for g in GRUPOS] + [res_g[g]["2"] for g in GRUPOS]
 opciones_disponibles = [e for grp in GRUPOS.values() for e in grp if e not in ya_clasificados]
@@ -40,28 +48,46 @@ for i in range(8):
     t = cols[i % 4].selectbox(f"3ro #{i+1}", [None] + lista, key=f"tercero_{i}")
     if t: terceros_seleccionados.append(t)
 
-# 3. Dieciseisavos (Regla: No puede haber empate)
-st.subheader("🥅 Dieciseisavos de Final (No se permiten empates)")
+# 3. Dieciseisavos (Cruces dinámicos)
+st.subheader("🥅 Dieciseisavos de Final (Eliminación Directa)")
 partidos_resultados = {}
-# (Listas de cruces igual que antes)
-c1_l = [res_g["A"]["1"], res_g["B"]["1"], res_g["C"]["1"], res_g["D"]["1"], res_g["E"]["1"], res_g["F"]["1"], res_g["G"]["1"], res_g["H"]["1"], res_g["I"]["1"], res_g["J"]["1"], res_g["K"]["1"], res_g["L"]["1"], res_g["A"]["2"], res_g["B"]["2"], res_g["C"]["2"], res_g["D"]["2"]]
-c2_l = [res_g["B"]["2"], res_g["A"]["2"], res_g["D"]["2"], res_g["C"]["2"], res_g["F"]["2"], res_g["E"]["2"], res_g["H"]["2"], res_g["G"]["2"], res_g["J"]["2"], res_g["I"]["2"], res_g["L"]["2"], res_g["K"]["2"], res_g["E"]["1"], res_g["F"]["1"], res_g["G"]["1"], res_g["H"]["1"]]
+cruces = [
+    ("A", "1", "B", "2"), ("B", "1", "A", "2"), ("C", "1", "D", "2"), ("D", "1", "C", "2"),
+    ("E", "1", "F", "2"), ("F", "1", "E", "2"), ("G", "1", "H", "2"), ("H", "1", "G", "2"),
+    ("I", "1", "J", "2"), ("J", "1", "I", "2"), ("K", "1", "L", "2"), ("L", "1", "K", "2"),
+    ("A", "2", "C", "1"), ("B", "2", "D", "1"), ("E", "2", "G", "1"), ("F", "2", "H", "1")
+]
 
-for i in range(16):
+for i, (g1, pos1, g2, pos2) in enumerate(cruces):
+    eq1, eq2 = res_g[g1][pos1], res_g[g2][pos2]
     c1, c2, c3 = st.columns([2, 1, 1])
-    c1.write(f"**D{i+1}:** {c1_l[i]} vs {c2_l[i]}")
-    g1 = c2.number_input(f"Goles {c1_l[i]}", min_value=0, key=f"g1_{i}")
-    g2 = c3.number_input(f"Goles {c2_l[i]}", min_value=0, key=f"g2_{i}")
+    c1.write(f"**D{i+1}:** {eq1} vs {eq2}")
+    g1_val = c2.number_input(f"Goles {eq1}", min_value=0, key=f"g1_{i}")
+    g2_val = c3.number_input(f"Goles {eq2}", min_value=0, key=f"g2_{i}")
     
-    # Validación: Si hay empate, pedir ganador en penaltis
-    if g1 == g2:
-        c3.warning("¡Empate! Selecciona ganador en penaltis:")
-        ganador = st.radio(f"¿Quién gana en penaltis {c1_l[i]}/{c2_l[i]}?", [c1_l[i], c2_l[i]], key=f"pen_{i}")
-        partidos_resultados[f"D{i+1}"] = f"{c1_l[i]} {g1}-{g2} (Gana {ganador} en penaltis)"
+    if g1_val == g2_val:
+        ganador = st.radio(f"Ganador penaltis {eq1} vs {eq2}", [eq1, eq2], key=f"pen_{i}", horizontal=True)
+        partidos_resultados[f"D{i+1}"] = f"{eq1} {g1_val}-{g2_val} (Gana {ganador})"
     else:
-        partidos_resultados[f"D{i+1}"] = f"{c1_l[i]} {g1}-{g2}"
+        partidos_resultados[f"D{i+1}"] = f"{eq1} {g1_val}-{g2_val} {eq2}"
 
-# 4. Botones
-if st.button("💾 GUARDAR BORRADOR"):
-    # (Lógica de guardado igual)
-    st.info("Borrador guardado.")
+# 4. Guardado
+def enviar(estado):
+    payload = {
+        "nombre": nombre, "estado": estado,
+        "octavos": json.dumps({"fases": partidos_resultados, "terceros": terceros_seleccionados}),
+        **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}
+    }
+    return requests.post(URL, data=payload)
+
+col1, col2 = st.columns(2)
+if col1.button("💾 GUARDAR BORRADOR"):
+    if nombre:
+        enviar("En Edición")
+        st.info("Borrador guardado. Puedes volver más tarde buscando por tu nombre.")
+    else: st.error("Ingresa tu nombre.")
+if col2.button("🚀 ENVIAR QUINIELA DEFINITIVA"):
+    if nombre:
+        enviar("Definitiva")
+        st.success("¡Enviada!")
+    else: st.error("Ingresa tu nombre.")
