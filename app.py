@@ -14,22 +14,13 @@ GRUPOS = {
     "K": ["Portugal", "Colombia", "Uzbekistán", "RD Congo"], "L": ["Inglaterra", "Croacia", "Ghana", "Panamá"]
 }
 
-# --- LÓGICA DE CARGA DE DATOS ---
-def cargar_datos(nombre):
-    res = requests.get(URL, params={"nombre": nombre})
-    if res.status_code == 200:
-        data = res.json()
-        if data.get("status") == "success": return data["datos"]
-    return None
-
-st.title("⚽ Quiniela Mundial 2026")
+st.title("⚽ Quiniela Mundial 2026 - Con 8 Mejores Terceros")
 nombre = st.text_input("Nombre del participante:").strip().title()
 
 if nombre:
-    datos_previos = cargar_datos(nombre)
-    
-    # --- FORMULARIO ---
+    # 1. Fase de Grupos
     res_g = {}
+    st.subheader("📋 Fase de Grupos (Clasificados)")
     for g, eq in GRUPOS.items():
         with st.expander(f"Grupo {g}"):
             c1, c2 = st.columns(2)
@@ -37,37 +28,46 @@ if nombre:
             o2 = c2.selectbox(f"2do {g}", [e for e in eq if e != o1], key=f"g{g}_2")
             res_g[g] = {"1": o1, "2": o2}
 
+    # 2. Selección de los 8 mejores terceros
+    st.subheader("🥉 Selección de los 8 mejores terceros")
+    st.info("Selecciona los 8 equipos que clasifican como mejores terceros:")
+    
+    lista_todos_equipos = [eq for grp in GRUPOS.values() for eq in grp]
+    ya_clasificados = [v["1"] for v in res_g.values()] + [v["2"] for v in res_g.values()]
+    opciones_terceros = [e for e in lista_todos_equipos if e not in ya_clasificados]
+    
+    terceros_seleccionados = []
+    cols_t = st.columns(4)
+    for i in range(8):
+        t = cols_t[i % 4].selectbox(f"3ro #{i+1}", opciones_terceros, key=f"tercero_{i}")
+        terceros_seleccionados.append(t)
+
+    # 3. Dieciseisavos (32 equipos en total)
     st.subheader("🥅 Dieciseisavos de Final (32 equipos)")
     partidos_resultados = {}
-    cruces_auto = [("A","B"), ("C","D"), ("E","F"), ("G","H"), ("I","J"), ("K","L"), ("B","A"), ("D","C"),
-                   ("F","E"), ("H","G"), ("J","I"), ("L","K"), ("A","C"), ("B","D"), ("E","G"), ("F","H")]
     
+    # Automatización: 16 partidos (12 primeros + 12 segundos + 8 terceros = 32)
     for i in range(1, 17):
-        g1, g2 = cruces_auto[i-1]
-        eq1 = res_g[g1]["1"] if i <= 8 else res_g[g1]["2"]
-        eq2 = res_g[g2]["2"] if i <= 8 else res_g[g2]["1"]
         c1, c2, c3 = st.columns([2, 1, 1])
-        c1.write(f"**D{i}: {eq1} vs {eq2}**")
-        goles1 = c2.number_input(f"Goles {eq1}", min_value=0, key=f"d{i}_g1")
-        goles2 = c3.number_input(f"Goles {eq2}", min_value=0, key=f"d{i}_g2")
-        partidos_resultados[f"D{i}"] = f"{eq1} {goles1}-{goles2} {eq2}"
+        # Aquí permitimos escribir el enfrentamiento o precargarlo
+        partido = c1.text_input(f"Partido D{i}:", key=f"p{i}")
+        goles1 = c2.number_input(f"Goles A", min_value=0, key=f"d{i}_g1")
+        goles2 = c3.number_input(f"Goles B", min_value=0, key=f"d{i}_g2")
+        partidos_resultados[f"D{i}"] = f"{partido} -> {goles1}-{goles2}"
 
-    # --- BOTONES DE GUARDADO ---
+    # 4. Guardado
     col1, col2 = st.columns(2)
-    
-    # Función para enviar a Google
-    def enviar_a_google(estado):
+    def enviar(estado):
         payload = {
             "nombre": nombre, "estado": estado,
-            "octavos": json.dumps(partidos_resultados, ensure_ascii=False),
+            "octavos": json.dumps({"fases": partidos_resultados, "terceros": terceros_seleccionados}, ensure_ascii=False),
             **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}
         }
         return requests.post(URL, data=payload)
 
     if col1.button("💾 GUARDAR BORRADOR"):
-        resp = enviar_a_google("En Edición")
-        if resp.status_code == 200: st.info("Borrador guardado. Puedes volver más tarde.")
-        
+        enviar("En Edición")
+        st.info("Borrador guardado.")
     if col2.button("🚀 ENVIAR QUINIELA DEFINITIVA"):
-        resp = enviar_a_google("Definitiva")
-        if resp.status_code == 200: st.success("¡Quiniela enviada! Ya no se puede modificar.")
+        enviar("Definitiva")
+        st.success("¡Enviada!")
