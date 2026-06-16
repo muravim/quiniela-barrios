@@ -17,62 +17,64 @@ GRUPOS = {
 st.title("⚽ Quiniela Mundial 2026")
 nombre = st.text_input("Ingrese su nombre:").strip().title()
 
-# 1. Fase de Grupos
-res_g = {}
-st.subheader("📋 Fase de Grupos")
-for g, eq in GRUPOS.items():
-    with st.expander(f"Grupo {g}"):
-        c1, c2 = st.columns(2)
-        o1 = c1.selectbox(f"1ero {g}", eq, key=f"g{g}_1")
-        o2 = c2.selectbox(f"2do {g}", [e for e in eq if e != o1], key=f"g{g}_2")
-        res_g[g] = {"1": o1, "2": o2}
+if nombre:
+    # 1. Fase de Grupos
+    res_g = {}
+    st.subheader("📋 Fase de Grupos")
+    for g, eq in GRUPOS.items():
+        with st.expander(f"Grupo {g}"):
+            c1, c2 = st.columns(2)
+            o1 = c1.selectbox(f"1ero {g}", eq, key=f"g{g}_1")
+            o2 = c2.selectbox(f"2do {g}", [e for e in eq if e != o1], key=f"g{g}_2")
+            res_g[g] = {"1": o1, "2": o2}
 
-# 2. Selección de mejores terceros (Lógica estricta de exclusión)
-st.subheader("🥉 Selección de los 8 mejores terceros")
-# Obtenemos la lista de los que ya son 1ros y 2dos
-ya_clasificados = [res_g[g]["1"] for g in GRUPOS] + [res_g[g]["2"] for g in GRUPOS]
-# Filtramos la lista de todos los equipos disponibles quitando los clasificados
-opciones_disponibles = [e for grp in GRUPOS.values() for e in grp if e not in ya_clasificados]
-
-terceros_seleccionados = []
-cols = st.columns(4)
-for i in range(8):
-    # En cada casilla, quitamos los que ya se eligieron en las casillas anteriores de terceros
-    ya_elegidos_en_terceros = [terceros_seleccionados[j] for j in range(len(terceros_seleccionados))]
-    lista_actual = [e for e in opciones_disponibles if e not in ya_elegidos_en_terceros]
+    # 2. Mejores Terceros
+    st.subheader("🥉 Selección de los 8 mejores terceros")
+    ya_clasificados = [res_g[g]["1"] for g in GRUPOS] + [res_g[g]["2"] for g in GRUPOS]
+    opciones_disponibles = [e for grp in GRUPOS.values() for e in grp if e not in ya_clasificados]
     
-    t = cols[i % 4].selectbox(f"3ro #{i+1}", [None] + lista_actual, key=f"tercero_{i}")
-    if t: terceros_seleccionados.append(t)
+    terceros_seleccionados = []
+    cols = st.columns(4)
+    for i in range(8):
+        ya_elegidos = [terceros_seleccionados[j] for j in range(len(terceros_seleccionados))]
+        lista_actual = [e for e in opciones_disponibles if e not in ya_elegidos]
+        t = cols[i % 4].selectbox(f"3ro #{i+1}", [None] + lista_actual, key=f"tercero_{i}")
+        if t: terceros_seleccionados.append(t)
 
-# 3. Dieciseisavos
-st.subheader("🥅 Dieciseisavos de Final (32 equipos)")
-partidos_resultados = {}
-for i in range(1, 17):
-    c1, c2, c3 = st.columns([2, 1, 1])
-    p = c1.text_input(f"Partido D{i}:", key=f"p{i}")
-    g1 = c2.number_input(f"Goles A", min_value=0, key=f"g1_{i}")
-    g2 = c3.number_input(f"Goles B", min_value=0, key=f"g2_{i}")
-    partidos_resultados[f"D{i}"] = f"{p} {g1}-{g2}"
+    # 3. Dieciseisavos Automáticos
+    st.subheader("🥅 Dieciseisavos de Final (16 partidos)")
+    partidos_resultados = {}
+    
+    # Lista de enfrentamientos (Reglamento estándar: 1ro de grupo vs 2do o 3ro)
+    # Ejemplo de estructura: (Equipo1, Equipo2)
+    # Ajusta los cruces según el bracket oficial que desees usar
+    c1_list = [res_g["A"]["1"], res_g["B"]["1"], res_g["C"]["1"], res_g["D"]["1"], res_g["E"]["1"], res_g["F"]["1"], res_g["G"]["1"], res_g["H"]["1"],
+               res_g["I"]["1"], res_g["J"]["1"], res_g["K"]["1"], res_g["L"]["1"], res_g["A"]["2"], res_g["B"]["2"], res_g["C"]["2"], res_g["D"]["2"]]
+    c2_list = [res_g["B"]["2"], res_g["A"]["2"], res_g["D"]["2"], res_g["C"]["2"], res_g["F"]["2"], res_g["E"]["2"], res_g["H"]["2"], res_g["G"]["2"],
+               res_g["J"]["2"], res_g["I"]["2"], res_g["L"]["2"], res_g["K"]["2"], res_g["E"]["1"], res_g["F"]["1"], res_g["G"]["1"], res_g["H"]["1"]]
 
-# 4. Botones
-col1, col2 = st.columns(2)
-def enviar(estado):
-    payload = {
-        "nombre": nombre, "estado": estado,
-        "octavos": json.dumps({"fases": partidos_resultados, "terceros": terceros_seleccionados}, ensure_ascii=False),
-        **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}
-    }
-    return requests.post(URL, data=payload)
+    for i in range(16):
+        c1, c2, c3 = st.columns([2, 1, 1])
+        c1.write(f"**Partido D{i+1}:** {c1_list[i]} vs {c2_list[i]}")
+        g1 = c2.number_input(f"Goles {c1_list[i]}", min_value=0, key=f"g1_{i}")
+        g2 = c3.number_input(f"Goles {c2_list[i]}", min_value=0, key=f"g2_{i}")
+        partidos_resultados[f"D{i+1}"] = f"{c1_list[i]} {g1}-{g2} {c2_list[i]}"
 
-if col1.button("💾 GUARDAR BORRADOR"):
-    if not nombre: st.error("Ingresa tu nombre primero")
-    else: 
+    # 4. Botones
+    col1, col2 = st.columns(2)
+    def enviar(estado):
+        payload = {
+            "nombre": nombre, "estado": estado,
+            "octavos": json.dumps({"fases": partidos_resultados, "terceros": terceros_seleccionados}, ensure_ascii=False),
+            **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}
+        }
+        return requests.post(URL, data=payload)
+
+    if col1.button("💾 GUARDAR BORRADOR"):
         enviar("En Edición")
         st.info("Borrador guardado.")
-
-if col2.button("🚀 ENVIAR QUINIELA DEFINITIVA"):
-    if not nombre: st.error("Ingresa tu nombre primero")
-    elif len(terceros_seleccionados) < 8: st.error("Selecciona los 8 terceros.")
-    else:
-        enviar("Definitiva")
-        st.success("¡Enviada!")
+    if col2.button("🚀 ENVIAR QUINIELA DEFINITIVA"):
+        if len(terceros_seleccionados) < 8: st.error("Faltan terceros.")
+        else:
+            enviar("Definitiva")
+            st.success("¡Enviada!")
