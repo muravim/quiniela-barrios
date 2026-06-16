@@ -11,18 +11,11 @@ GRUPOS = {
     "E": ["Alemania", "Costa de Marfil", "Ecuador", "Curazao"], "F": ["Países Bajos", "Japón", "Suecia", "Túnez"],
     "G": ["Bélgica", "Egipto", "Irán", "Nueva Zelanda"], "H": ["España", "Uruguay", "Arabia Saudita", "Cabo Verde"],
     "I": ["Francia", "Senegal", "Noruega", "Irak"], "J": ["Argentina", "Argelia", "Austria", "Jordania"],
-    "K": ["Portugal", "Colombia", "Uzbekistán", "RD Congo"], "L": ["Ing ইংল্যান্ড", "Croacia", "Ghana", "Panamá"]
+    "K": ["Portugal", "Colombia", "Uzbekistán", "RD Congo"], "L": ["Inglaterra", "Croacia", "Ghana", "Panamá"]
 }
 
 st.title("⚽ Quiniela Mundial 2026")
 nombre = st.text_input("Ingrese su nombre para cargar progreso:").strip().title()
-
-datos_guardados = None
-if nombre:
-    res = requests.get(URL, params={"nombre": nombre})
-    if res.status_code == 200:
-        data = res.json()
-        if data.get("status") == "success": datos_guardados = data["datos"]
 
 res_g = {}
 st.subheader("📋 Fase de Grupos")
@@ -51,8 +44,8 @@ c2_list = [res_g["B"]["2"], res_g["A"]["2"], res_g["D"]["2"], res_g["C"]["2"], r
 for i in range(16):
     c1, c2, c3 = st.columns([2, 1, 1])
     c1.write(f"**Partido D{i+1}:** {c1_list[i]} vs {c2_list[i]}")
-    g1 = c2.number_input(f"Goles A", min_value=0, key=f"g1_{i}")
-    g2 = c3.number_input(f"Goles B", min_value=0, key=f"g2_{i}")
+    g1 = c2.number_input(f"Goles {c1_list[i]}", min_value=0, key=f"g1_{i}")
+    g2 = c3.number_input(f"Goles {c2_list[i]}", min_value=0, key=f"g2_{i}")
     partidos_resultados[f"D{i+1}"] = f"{c1_list[i]} {g1}-{g2} {c2_list[i]}"
 
 col1, col2 = st.columns(2)
