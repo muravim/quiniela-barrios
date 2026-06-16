@@ -69,7 +69,8 @@ else:
             goles2 = c3.number_input(f"Goles {eq2}", min_value=0, key=f"d{i}_g2")
             partidos_resultados[f"D{i}"] = f"{eq1} {goles1}-{goles2} {eq2}"
 
-        if st.button("🚀 ENVIAR QUINIELA"):
+        # Botón renombrado a "GUARDAR"
+        if st.button("💾 GUARDAR QUINIELA"):
             payload = {
                 "nombre": nombre, 
                 "estado": "En Edición",
