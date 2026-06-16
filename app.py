@@ -80,3 +80,21 @@ else:
             }
             requests.post(URL, data=payload)
             st.success("Guardado correctamente.")
+            if st.button("🚀 ENVIAR QUINIELA"):
+            # Construcción del payload robusto para los 16 partidos
+            payload = {
+                "nombre": nombre, 
+                "estado": "En Edición",
+                # Convertimos el diccionario de resultados en un string JSON compacto
+                "octavos": json.dumps(partidos_resultados, ensure_ascii=False),
+                **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}
+            }
+            
+            try:
+                response = requests.post(URL, data=payload)
+                if response.status_code == 200:
+                    st.success("¡Quiniela guardada exitosamente!")
+                else:
+                    st.error(f"Error al guardar: {response.text}")
+            except Exception as e:
+                st.error(f"Error de conexión: {str(e)}")
