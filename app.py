@@ -2,8 +2,7 @@ import streamlit as st
 import requests
 import json
 
-# Configuración de página
-st.set_page_config(page_title="Quiniela Dinastía Barrios", page_icon="⚽", layout="centered")
+st.set_page_config(page_title="Quiniela Dinastía Barrios", page_icon="⚽", layout="wide")
 
 URL_CONTROL_HOJA = "https://script.google.com/macros/s/AKfycbzCQ5FcILnKcosplY2PASwTLeLko9YJRrAC602PkBJ1ojdg_cSEUPJsFAATf5XM0ZRRMw/exec"
 
@@ -22,60 +21,60 @@ GRUPOS_MUNDIAL = {
     "Grupo L": ["Inglaterra", "Croacia", "Ghana", "Panamá"]
 }
 
-st.title("🏆 Quiniela FIFA 2026")
-st.subheader("💥 Dinastía Barrios 💥")
-
-menu = st.radio("Acción:", ["Llenar/Editar Quiniela", "Ver mi quiniela guardada"])
+menu = st.sidebar.radio("Navegación:", ["Llenar/Editar Quiniela", "Ver mi quiniela guardada"])
 
 if menu == "Ver mi quiniela guardada":
-    nombre_consulta = st.text_input("👤 Ingrese su Nombre:").strip()
+    st.title("🔍 Buscar Quiniela")
+    nombre_consulta = st.text_input("Ingrese su nombre para buscar:").strip()
     if st.button("Consultar"):
         res = requests.get(URL_CONTROL_HOJA, params={"nombre": nombre_consulta})
         respuesta = res.json()
-        
         if respuesta.get("status") == "success":
             d = respuesta["datos"]
-            st.success(f"### Quiniela de {d[0]}")
-            
+            st.success(f"Quiniela de: {d[0]}")
+            # Mostrar Grupos
             st.subheader("📋 Fase de Grupos")
-            cols = st.columns(3)
+            c1, c2, c3 = st.columns(3)
             for i in range(1, 13):
-                cols[(i-1)%3].write(f"**Grupo {chr(64+i)}:** {d[i]}")
-            
-            st.subheader("🏆 Pronósticos Fase Final")
+                [c1, c2, c3][(i-1)%3].write(f"**G{chr(64+i)}:** {d[i]}")
+            # Mostrar Fases Finales
+            st.subheader("🏆 Fases Finales")
             try:
                 camino = json.loads(d[13])
-                with st.expander("Ver detalle de Octavos, Cuartos y Semis"):
-                    st.write(camino)
-                st.info(f"**Tu Campeón Pronosticado:** {d[14]}")
-                st.caption(f"Última actualización: {d[15]} | Estado: {d[16]}")
-            except:
-                st.warning("No se pudo cargar el detalle de las fases finales.")
-        else:
-            st.error("Participante no encontrado.")
+                for etapa, partidos in camino.items():
+                    with st.expander(f"Ver {etapa}"):
+                        for p, det in partidos.items():
+                            st.write(f"**{p}:** {det}")
+                st.metric("Campeón", d[14])
+            except: st.error("Error al leer fases finales.")
+        else: st.error("No encontrado.")
 
 else:
-    nombre = st.text_input("👤 Ingrese su Nombre:", placeholder="Ej. Muravi").strip().title()
-    
+    st.title("⚽ Llenar Quiniela")
+    nombre = st.text_input("Nombre y Apellido:").strip().title()
     if nombre:
-        st.header("📋 Fase de Grupos")
         respuestas_grupos = {}
-        for grupo, equipos in GRUPOS_MUNDIAL.items():
-            with st.expander(f"⚽ {grupo}"):
+        for g, eq in GRUPOS_MUNDIAL.items():
+            with st.expander(f"{g}"):
                 c1, c2 = st.columns(2)
-                with c1: op1 = st.selectbox(f"1er", ["---"] + equipos, key=f"{grupo}_1")
-                with c2: op2 = st.selectbox(f"2do", ["---"] + [e for e in equipos if e != op1], key=f"{grupo}_2")
-                if op1 != "---" and op2 != "---": respuestas_grupos[grupo] = [op1, op2]
-
+                o1 = c1.selectbox(f"1ero {g}", ["---"] + eq, key=f"{g}_1")
+                o2 = c2.selectbox(f"2do {g}", ["---"] + [e for e in eq if e != o1], key=f"{g}_2")
+                if o1 != "---" and o2 != "---": respuestas_grupos[g] = [o1, o2]
+        
         if len(respuestas_grupos) == 12:
-            st.header("🥅 Fases Finales")
-            st.write("*(Nota: Lógica de llenado de partidos omitida para brevedad, asegurar que los datos coincidan con tu estructura)*")
-            campeon = st.text_input("Ingrese su Campeón:")
+            st.subheader("🥅 Definir Fases Finales")
+            # --- Lógica de llenado de Octavos ---
+            octavos_res = {}
+            for i in range(1, 9):
+                octavos_res[f"O{i}"] = st.text_input(f"Ganador Octavos {i}", key=f"O{i}")
             
-            es_definitiva = st.checkbox("✅ Marcar como GUARDADO DEFINITIVO")
+            campeon = st.text_input("Nombre del Campeón:")
             
-            if st.button("🚀 ENVIAR QUINIELA"):
-                datos_a_enviar = {
+            es_definitiva = st.checkbox("✅ Guardado DEFINITIVO")
+            if st.button("🚀 ENVIAR"):
+                # Empaquetar todo
+                todo = {"Octavos": octavos_res}
+                payload = {
                     "nombre": nombre,
                     "estado": "Definitiva" if es_definitiva else "En Edición",
                     "grupo_a": ", ".join(respuestas_grupos["Grupo A"]),
@@ -90,11 +89,8 @@ else:
                     "grupo_j": ", ".join(respuestas_grupos["Grupo J"]),
                     "grupo_k": ", ".join(respuestas_grupos["Grupo K"]),
                     "grupo_l": ", ".join(respuestas_grupos["Grupo L"]),
-                    "octavos": "{}", 
+                    "octavos": json.dumps(todo),
                     "campeon": campeon
                 }
-                envio = requests.post(URL_CONTROL_HOJA, data=datos_a_enviar)
-                if envio.status_code == 200:
-                    st.success("¡Guardado exitosamente!")
-                else:
-                    st.error("Error al guardar en el servidor.")
+                res = requests.post(URL_CONTROL_HOJA, data=payload)
+                st.success("Guardado con éxito.")
