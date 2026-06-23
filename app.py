@@ -1,97 +1,70 @@
-import streamlit as st
-import requests
+function doGet(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Respuestas");
+  var nombreConsulta = e.parameter.nombre;
+  
+  if (!nombreConsulta) return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Nombre requerido"}));
 
-st.set_page_config(page_title="Quiniela FIFA 2026", layout="wide")
-
-# URL de tu Web App (Verificada)
-URL = "https://script.google.com/macros/s/AKfycbzCQ5FcILnKcosplY2PASwTLeLko9YJRrAC602PkBJ1ojdg_cSEUPJsFAATf5XM0ZRRMw/exec"
-
-GRUPOS = {
-    "A": ["México", "Sudáfrica", "Corea del Sur", "Chequia"], "B": ["Canadá", "Bosnia y Herzegovina", "Catar", "Suiza"],
-    "C": ["Brasil", "Marruecos", "Haití", "Escocia"], "D": ["Estados Unidos", "Paraguay", "Australia", "Turquía"],
-    "E": ["Alemania", "Costa de Marfil", "Ecuador", "Curazao"], "F": ["Países Bajos", "Japón", "Suecia", "Túnez"],
-    "G": ["Bélgica", "Egipto", "Irán", "Nueva Zelanda"], "H": ["España", "Uruguay", "Arabia Saudita", "Cabo Verde"],
-    "I": ["Francia", "Senegal", "Noruega", "Irak"], "J": ["Argentina", "Argelia", "Austria", "Jordania"],
-    "K": ["Portugal", "Colombia", "Uzbekistán", "RD Congo"], "L": ["Inglaterra", "Croacia", "Ghana", "Panamá"]
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0].toString().trim().toLowerCase() === nombreConsulta.trim().toLowerCase()) {
+      
+      // Corrección automática: Si eres tú, fuerza el rol a Admin en la hoja
+      var esAdmin = (data[i][0].toString().trim() === "Muravi Molina");
+      if (esAdmin && data[i][18] !== "Admin") {
+        sheet.getRange(i + 1, 19).setValue("Admin");
+        data[i][18] = "Admin";
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        "status": "success", 
+        "datos": data[i],
+        "es_admin": (data[i][18] === "Admin")
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Participante no encontrado"}));
 }
 
-# --- ESTADO DE SESIÓN ---
-if 'logueado' not in st.session_state:
-    st.session_state.update({'logueado': False, 'usuario': "", 'datos': None, 'es_admin': False, 'es_definitiva': False})
+function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Respuestas");
+  var p = e.parameter;
+  
+  if (!p.nombre) return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Falta nombre"}));
 
-st.title("⚽ Quiniela Mundial 2026")
+  var esAdmin = (p.nombre.trim() === "Muravi Molina");
+  var rol = esAdmin ? "Admin" : "Usuario";
 
-# --- LOGIN / REGISTRO ---
-if not st.session_state.logueado:
-    tab1, tab2 = st.tabs(["Ingresar", "Registrarse"])
-    
-    with tab1:
-        nombre = st.text_input("Nombre de usuario:", key="login_n").strip().title()
-        password = st.text_input("Contraseña:", type="password", key="login_p")
-        if st.button("Ingresar"):
-            res = requests.get(URL, params={"nombre": nombre})
-            if res.status_code == 200 and res.json().get("status") == "success":
-                datos = res.json().get("datos")
-                # Verificamos contraseña (columna B es índice 1)
-                if datos[1] == password:
-                    st.session_state.update({
-                        'logueado': True, 
-                        'usuario': nombre, 
-                        'datos': datos, 
-                        'es_admin': res.json().get("es_admin", False),
-                        'es_definitiva': (datos[16] == "Definitiva")
-                    })
-                    st.rerun()
-                else: st.error("Contraseña incorrecta")
-            else: st.error("Usuario no encontrado")
-
-    with tab2:
-        new_n = st.text_input("Elige tu nombre:", key="reg_n").strip().title()
-        new_p = st.text_input("Elige una contraseña:", type="password", key="reg_p")
-        if st.button("Registrarse"):
-            res = requests.post(URL, data={"nombre": new_n, "password": new_p, "estado": "En Edición"})
-            if res.status_code == 200: st.success("¡Registro exitoso! Ya puedes ingresar en la pestaña de Ingreso.")
-            else: st.error("Error al registrar.")
-    st.stop()
-
-# --- PANEL ADMIN ---
-if st.session_state.es_admin:
-    with st.expander("🛠️ Panel de Administrador"):
-        st.write("Bienvenido, Administrador.")
-        st.button("Desbloquear quinielas globales")
-
-# --- INTERFAZ ---
-es_def = st.session_state.es_definitiva
-if es_def: st.warning("🔒 QUINIELA DEFINITIVA: No se permiten cambios.")
-
-res_g = {}
-datos = st.session_state.datos
-for i, (g, eq) in enumerate(GRUPOS.items()):
-    val = datos[2 + i] if datos and len(datos) > (2 + i) else ""
-    opts = val.split(", ") if ", " in val else [None, None]
-    with st.expander(f"Grupo {g}"):
-        c1, c2 = st.columns(2)
-        o1 = c1.selectbox(f"1ero {g}", eq, index=eq.index(opts[0]) if opts[0] in eq else 0, key=f"g{g}_1", disabled=es_def)
-        rest = [e for e in eq if e != o1]
-        o2 = c2.selectbox(f"2do {g}", rest, index=rest.index(opts[1]) if opts[1] in rest else 0, key=f"g{g}_2", disabled=es_def)
-        res_g[g] = {"1": o1, "2": o2}
-
-def enviar_datos(estado):
-    payload = {
-        "nombre": st.session_state.usuario,
-        "password": st.session_state.datos[1],
-        "estado": estado,
-        "octavos": "{}",
-        **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}
+  var data = sheet.getDataRange().getValues();
+  var rowIndex = -1;
+  
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0].toString().trim().toLowerCase() === p.nombre.trim().toLowerCase()) {
+      if (data[i][16] === "Definitiva") return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Quiniela bloqueada"}));
+      rowIndex = i + 1;
+      break;
     }
-    requests.post(URL, data=payload)
-
-if not es_def:
-    col1, col2 = st.columns(2)
-    if col1.button("💾 Guardar Borrador"):
-        enviar_datos("En Edición")
-        st.info("Borrador guardado.")
-    if col2.button("🚀 ENVIAR DEFINITIVA"):
-        enviar_datos("Definitiva")
-        st.success("¡Quiniela enviada!")
-        st.rerun()
+  }
+  
+  if (rowIndex === -1) {
+    sheet.appendRow([
+      p.nombre, p.password, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "{}", "Pendiente", "En Edición", 0, rol
+    ]);
+  } else {
+    var fila = [
+      p.nombre, p.password, 
+      p.grupo_a || data[rowIndex-1][2], p.grupo_b || data[rowIndex-1][3], 
+      p.grupo_c || data[rowIndex-1][4], p.grupo_d || data[rowIndex-1][5], 
+      p.grupo_e || data[rowIndex-1][6], p.grupo_f || data[rowIndex-1][7], 
+      p.grupo_g || data[rowIndex-1][8], p.grupo_h || data[rowIndex-1][9], 
+      p.grupo_i || data[rowIndex-1][10], p.grupo_j || data[rowIndex-1][11], 
+      p.grupo_k || data[rowIndex-1][12], p.grupo_l || data[rowIndex-1][13], 
+      p.octavos || data[rowIndex-1][14], p.campeon || data[rowIndex-1][15], 
+      p.estado || data[rowIndex-1][16], 0, rol
+    ];
+    sheet.getRange(rowIndex, 1, 1, fila.length).setValues([fila]);
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Procesado"}));
+}
