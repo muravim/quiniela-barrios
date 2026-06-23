@@ -1,11 +1,10 @@
 import streamlit as st
 import requests
-import json
 
 st.set_page_config(page_title="Quiniela FIFA 2026", layout="wide")
 
-# Sustituye con tu URL de Web App de Google Apps Script
-URL = "TU_URL_DE_GOOGLE_SCRIPT_AQUI" 
+# URL de tu Web App
+URL = "https://script.google.com/macros/s/AKfycbzCQ5FcILnKcosplY2PASwTLeLko9YJRrAC602PkBJ1ojdg_cSEUPJsFAATf5XM0ZRRMw/exec"
 
 GRUPOS = {
     "A": ["México", "Sudáfrica", "Corea del Sur", "Chequia"], "B": ["Canadá", "Bosnia y Herzegovina", "Catar", "Suiza"],
@@ -28,14 +27,11 @@ if not st.session_state.logueado:
     password = st.text_input("Contraseña:", type="password")
     if st.button("Ingresar"):
         res = requests.get(URL, params={"nombre": nombre})
-        # Lógica simple de validación (el password debe estar en la columna B)
         if res.status_code == 200 and res.json().get("status") == "success":
             datos = res.json().get("datos")
-            if datos[1] == password: # Columna B es password
+            if datos[1] == password:
                 st.session_state.update({
-                    'logueado': True, 
-                    'usuario': nombre, 
-                    'datos': datos, 
+                    'logueado': True, 'usuario': nombre, 'datos': datos, 
                     'es_admin': res.json().get("es_admin", False),
                     'es_definitiva': (datos[16] == "Definitiva")
                 })
@@ -48,27 +44,36 @@ if not st.session_state.logueado:
 if st.session_state.es_admin:
     with st.expander("🛠️ Panel de Administrador"):
         st.write("Bienvenido, Administrador.")
-        if st.button("Desbloquear quinielas globales"):
-            st.warning("Función de desbloqueo administrativo activa.")
+        st.button("Desbloquear quinielas globales")
 
-# --- INTERFAZ ---
+# --- INTERFAZ DE GRUPOS ---
 es_def = st.session_state.es_definitiva
 if es_def: st.warning("🔒 QUINIELA DEFINITIVA: No se permiten cambios.")
 
 res_g = {}
-for g, eq in GRUPOS.items():
+# Cargamos los datos guardados en la columna C (índice 2) hasta N (índice 13)
+datos = st.session_state.datos
+for i, (g, eq) in enumerate(GRUPOS.items()):
+    val_guardado = datos[2 + i] if datos and len(datos) > (2 + i) else ""
+    opciones = val_guardado.split(", ") if ", " in val_guardado else [None, None]
+    
     with st.expander(f"Grupo {g}"):
         c1, c2 = st.columns(2)
-        o1 = c1.selectbox(f"1ero {g}", eq, key=f"g{g}_1", disabled=es_def)
-        o2 = c2.selectbox(f"2do {g}", [e for e in eq if e != o1], key=f"g{g}_2", disabled=es_def)
+        idx1 = eq.index(opciones[0]) if opciones[0] in eq else 0
+        o1 = c1.selectbox(f"1ero {g}", eq, index=idx1, key=f"g{g}_1", disabled=es_def)
+        
+        restantes = [e for e in eq if e != o1]
+        idx2 = restantes.index(opciones[1]) if opciones[1] in restantes else 0
+        o2 = c2.selectbox(f"2do {g}", restantes, index=idx2, key=f"g{g}_2", disabled=es_def)
         res_g[g] = {"1": o1, "2": o2}
 
 # --- GUARDADO ---
 def enviar_datos(estado):
     payload = {
         "nombre": st.session_state.usuario,
+        "password": st.session_state.datos[1],
         "estado": estado,
-        "octavos": "{}", # Aquí iría tu JSON de partidos
+        "octavos": "{}",
         **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}
     }
     requests.post(URL, data=payload)
