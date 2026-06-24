@@ -1,9 +1,10 @@
 import streamlit as st
 import requests
+import pandas as pd
 
 st.set_page_config(page_title="Quiniela FIFA 2026", layout="wide")
 
-# URL de tu Web App
+# URL de tu Web App de Google Apps Script
 URL = "https://script.google.com/macros/s/AKfycbzCQ5FcILnKcosplY2PASwTLeLko9YJRrAC602PkBJ1ojdg_cSEUPJsFAATf5XM0ZRRMw/exec"
 
 GRUPOS = {
@@ -47,7 +48,7 @@ if not st.session_state.logueado:
         new_p = st.text_input("Elige una contraseña:", type="password", key="reg_p")
         if st.button("Registrarse"):
             res = requests.post(URL, data={"nombre": new_n, "password": new_p, "estado": "En Edición"})
-            if res.status_code == 200: st.success("¡Registro exitoso! Ya puedes ingresar.")
+            if res.status_code == 200: st.success("¡Registro exitoso! Ya puedes ingresar en la pestaña de Ingreso.")
             else: st.error("Error al registrar.")
     st.stop()
 
@@ -58,12 +59,13 @@ if st.session_state.es_admin:
         if st.button("Desbloquear quinielas globales"):
             st.warning("Función de desbloqueo administrativo.")
 
-# --- INTERFAZ ---
+# --- INTERFAZ DE SELECCIÓN DE GRUPOS ---
 es_def = st.session_state.es_definitiva
 if es_def: st.warning("🔒 QUINIELA DEFINITIVA: No se permiten cambios.")
 
 res_g = {}
 datos = st.session_state.datos
+
 for i, (g, eq) in enumerate(GRUPOS.items()):
     val = datos[2 + i] if datos and len(datos) > (2 + i) else ""
     opts = val.split(", ") if ", " in val else [None, None]
@@ -74,16 +76,47 @@ for i, (g, eq) in enumerate(GRUPOS.items()):
         o2 = c2.selectbox(f"2do {g}", rest, index=rest.index(opts[1]) if opts[1] in rest else 0, key=f"g{g}_2", disabled=es_def)
         res_g[g] = {"1": o1, "2": o2}
 
-def enviar_datos(estado):
-    payload = {"nombre": st.session_state.usuario, "password": st.session_state.datos[1], "estado": estado, "octavos": "{}", **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}}
-    requests.post(URL, data=payload)
+# --- VISTA DE MIS PREDICCIONES (OPCIÓN 1) ---
+st.divider()
+st.subheader("📋 Resumen de tus predicciones guardadas")
 
+if datos:
+    resumen = {}
+    for i, g in enumerate(GRUPOS.keys()):
+        val = datos[2 + i] if len(datos) > (2 + i) else ""
+        resumen[f"Grupo {g}"] = val if val else "Sin seleccionar"
+    
+    # Renderizado estético usando un DataFrame de Pandas expuesto en una tabla limpia
+    df = pd.DataFrame.from_dict(resumen, orient='index', columns=['Clasificados en Base de Datos (1ero, 2do)'])
+    st.table(df)
+else:
+    st.info("No se encontraron registros previos guardados en la base de datos.")
+
+# --- LÓGICA DE ENVÍO Y REFRESCADO DE DATOS ---
+def enviar_datos(estado):
+    payload = {
+        "nombre": st.session_state.usuario,
+        "password": st.session_state.datos[1],
+        "estado": estado,
+        "octavos": "{}",
+        **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}
+    }
+    res = requests.post(URL, data=payload)
+    
+    # Sincronización automática: Volvemos a pedir los datos para actualizar la tabla resumen en vivo
+    if res.status_code == 200:
+        res_actualizada = requests.get(URL, params={"nombre": st.session_state.usuario})
+        if res_actualizada.status_code == 200 and res_actualizada.json().get("status") == "success":
+            st.session_state.datos = res_actualizada.json().get("datos")
+
+# --- BOTONES DE ACCIÓN ---
 if not es_def:
     col1, col2 = st.columns(2)
     if col1.button("💾 Guardar Borrador"):
         enviar_datos("En Edición")
-        st.info("Borrador guardado.")
+        st.info("Borrador guardado y sincronizado con éxito.")
+        st.rerun()
     if col2.button("🚀 ENVIAR DEFINITIVA"):
         enviar_datos("Definitiva")
-        st.success("¡Quiniela enviada!")
+        st.success("¡Quiniela enviada permanentemente!")
         st.rerun()
