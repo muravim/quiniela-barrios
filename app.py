@@ -16,7 +16,7 @@ GRUPOS = {
 }
 
 if 'logueado' not in st.session_state:
-    st.session_state.update({'logueado': False, 'usuario': "", 'datos': None, 'es_admin': False, 'es_definitiva': False})
+    st.session_state.update({'logueado': False, 'usuario': "", 'datos': None, 'es_admin': False, 'es_definitiva': False, 't_sel': []})
 
 st.title("⚽ Quiniela Mundial 2026")
 
@@ -31,7 +31,14 @@ if not st.session_state.logueado:
             if res.status_code == 200 and res.json().get("status") == "success":
                 datos = res.json().get("datos")
                 if datos[1] == password:
-                    st.session_state.update({'logueado': True, 'usuario': nombre, 'datos': datos, 'es_admin': res.json().get("es_admin", False), 'es_definitiva': (datos[16] == "Definitiva")})
+                    # Cargamos terceros previos si existen
+                    octavos_data = json.loads(datos[14]) if datos[14] else {}
+                    st.session_state.update({
+                        'logueado': True, 'usuario': nombre, 'datos': datos, 
+                        'es_admin': res.json().get("es_admin", False), 
+                        'es_definitiva': (datos[16] == "Definitiva"),
+                        't_sel': octavos_data.get("terceros", [])
+                    })
                     st.rerun()
                 else: st.error("Contraseña incorrecta")
     with tab2:
@@ -67,7 +74,18 @@ with tab_terceros:
     for g, sel in res_g.items():
         candidatos.extend([e for e in GRUPOS[g] if e != sel['1'] and e != sel['2']])
     
-    terceros_sel = st.multiselect("Elige 8 equipos:", options=candidatos, max_selections=8, disabled=es_def, key="t_sel")
+    # Filtramos la selección actual para que solo contenga elementos que aún son candidatos
+    seleccion_valida = [t for t in st.session_state.t_sel if t in candidatos]
+    
+    terceros_sel = st.multiselect(
+        "Elige 8 equipos:", 
+        options=candidatos, 
+        default=seleccion_valida,
+        max_selections=8, 
+        disabled=es_def,
+        key="t_sel"
+    )
+    st.info(f"Seleccionados: {len(terceros_sel)} / 8")
 
 # --- PESTAÑA 3: FASES FINALES ---
 with tab_final:
@@ -79,7 +97,7 @@ def enviar_datos(estado):
         "nombre": st.session_state.usuario,
         "password": st.session_state.datos[1],
         "estado": estado,
-        "octavos": json.dumps({"terceros": terceros_sel}),
+        "octavos": json.dumps({"terceros": st.session_state.t_sel}),
         **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}
     }
     requests.post(URL, data=payload)
