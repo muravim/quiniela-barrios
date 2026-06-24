@@ -1,10 +1,10 @@
 import streamlit as st
 import requests
 import pandas as pd
+import json
 
 st.set_page_config(page_title="Quiniela FIFA 2026", layout="wide")
 
-# URL de tu Web App de Google Apps Script
 URL = "https://script.google.com/macros/s/AKfycbzCQ5FcILnKcosplY2PASwTLeLko9YJRrAC602PkBJ1ojdg_cSEUPJsFAATf5XM0ZRRMw/exec"
 
 GRUPOS = {
@@ -16,7 +16,6 @@ GRUPOS = {
     "K": ["Portugal", "Colombia", "Uzbekistán", "RD Congo"], "L": ["Inglaterra", "Croacia", "Ghana", "Panamá"]
 }
 
-# --- ESTADO DE SESIÓN ---
 if 'logueado' not in st.session_state:
     st.session_state.update({'logueado': False, 'usuario': "", 'datos': None, 'es_admin': False, 'es_definitiva': False})
 
@@ -25,98 +24,71 @@ st.title("⚽ Quiniela Mundial 2026")
 # --- LOGIN / REGISTRO ---
 if not st.session_state.logueado:
     tab1, tab2 = st.tabs(["Ingresar", "Registrarse"])
-    
     with tab1:
-        nombre = st.text_input("Nombre de usuario:", key="login_n").strip().title()
+        nombre = st.text_input("Nombre:", key="login_n").strip().title()
         password = st.text_input("Contraseña:", type="password", key="login_p")
         if st.button("Ingresar"):
             res = requests.get(URL, params={"nombre": nombre})
             if res.status_code == 200 and res.json().get("status") == "success":
                 datos = res.json().get("datos")
                 if datos[1] == password:
-                    st.session_state.update({
-                        'logueado': True, 'usuario': nombre, 'datos': datos, 
-                        'es_admin': res.json().get("es_admin", False),
-                        'es_definitiva': (datos[16] == "Definitiva")
-                    })
+                    st.session_state.update({'logueado': True, 'usuario': nombre, 'datos': datos, 'es_admin': res.json().get("es_admin", False), 'es_definitiva': (datos[16] == "Definitiva")})
                     st.rerun()
                 else: st.error("Contraseña incorrecta")
             else: st.error("Usuario no encontrado")
-
     with tab2:
-        new_n = st.text_input("Elige tu nombre:", key="reg_n").strip().title()
-        new_p = st.text_input("Elige una contraseña:", type="password", key="reg_p")
+        new_n = st.text_input("Nombre de registro:", key="reg_n").strip().title()
+        new_p = st.text_input("Contraseña de registro:", type="password", key="reg_p")
         if st.button("Registrarse"):
             res = requests.post(URL, data={"nombre": new_n, "password": new_p, "estado": "En Edición"})
-            if res.status_code == 200: st.success("¡Registro exitoso! Ya puedes ingresar en la pestaña de Ingreso.")
-            else: st.error("Error al registrar.")
+            if res.status_code == 200: st.success("¡Registro exitoso!")
     st.stop()
 
-# --- PANEL ADMIN ---
-if st.session_state.es_admin:
-    with st.expander("🛠️ Panel de Administrador"):
-        st.write("Bienvenido, Administrador.")
-        if st.button("Desbloquear quinielas globales"):
-            st.warning("Función de desbloqueo administrativo.")
+# --- ESTRUCTURA DE PESTAÑAS ---
+tab_grupos, tab_terceros, tab_final = st.tabs(["1. Grupos", "2. Mejores Terceros", "3. Fases Finales"])
 
-# --- INTERFAZ DE SELECCIÓN DE GRUPOS ---
 es_def = st.session_state.es_definitiva
-if es_def: st.warning("🔒 QUINIELA DEFINITIVA: No se permiten cambios.")
-
-res_g = {}
 datos = st.session_state.datos
 
-for i, (g, eq) in enumerate(GRUPOS.items()):
-    val = datos[2 + i] if datos and len(datos) > (2 + i) else ""
-    opts = val.split(", ") if ", " in val else [None, None]
-    with st.expander(f"Grupo {g}"):
-        c1, c2 = st.columns(2)
-        o1 = c1.selectbox(f"1ero {g}", eq, index=eq.index(opts[0]) if opts[0] in eq else 0, key=f"g{g}_1", disabled=es_def)
-        rest = [e for e in eq if e != o1]
-        o2 = c2.selectbox(f"2do {g}", rest, index=rest.index(opts[1]) if opts[1] in rest else 0, key=f"g{g}_2", disabled=es_def)
-        res_g[g] = {"1": o1, "2": o2}
+# --- PESTAÑA 1: GRUPOS ---
+res_g = {}
+with tab_grupos:
+    for i, (g, eq) in enumerate(GRUPOS.items()):
+        val = datos[2 + i] if datos and len(datos) > (2 + i) else ""
+        opts = val.split(", ") if ", " in val else [None, None]
+        with st.expander(f"Grupo {g}"):
+            c1, c2 = st.columns(2)
+            o1 = c1.selectbox(f"1ero {g}", eq, index=eq.index(opts[0]) if opts[0] in eq else 0, key=f"g{g}_1", disabled=es_def)
+            rest = [e for e in eq if e != o1]
+            o2 = c2.selectbox(f"2do {g}", rest, index=rest.index(opts[1]) if opts[1] in rest else 0, key=f"g{g}_2", disabled=es_def)
+            res_g[g] = {"1": o1, "2": o2}
 
-# --- VISTA DE MIS PREDICCIONES (OPCIÓN 1) ---
-st.divider()
-st.subheader("📋 Resumen de tus predicciones guardadas")
-
-if datos:
-    resumen = {}
-    for i, g in enumerate(GRUPOS.keys()):
-        val = datos[2 + i] if len(datos) > (2 + i) else ""
-        resumen[f"Grupo {g}"] = val if val else "Sin seleccionar"
+# --- PESTAÑA 2: MEJORES TERCEROS ---
+with tab_terceros:
+    st.write("Selecciona los 8 mejores terceros (excluyendo a los clasificados 1ero y 2do):")
+    terceros_posibles = []
+    for g, sel in res_g.items():
+        terceros_posibles.extend([e for e in GRUPOS[g] if e not in [sel['1'], sel['2']]])
     
-    # Renderizado estético usando un DataFrame de Pandas expuesto en una tabla limpia
-    df = pd.DataFrame.from_dict(resumen, orient='index', columns=['Clasificados en Base de Datos (1ero, 2do)'])
-    st.table(df)
-else:
-    st.info("No se encontraron registros previos guardados en la base de datos.")
+    terceros_sel = st.multiselect("Elige 8 equipos:", terceros_posibles, max_selections=8, disabled=es_def)
 
-# --- LÓGICA DE ENVÍO Y REFRESCADO DE DATOS ---
+# --- PESTAÑA 3: FASES FINAL ---
+with tab_final:
+    st.info("Próximamente: Configuración de cruces para 16avos, Octavos, Cuartos, Semis y Final.")
+
+# --- GUARDADO ---
 def enviar_datos(estado):
     payload = {
         "nombre": st.session_state.usuario,
         "password": st.session_state.datos[1],
         "estado": estado,
-        "octavos": "{}",
+        "octavos": json.dumps({"terceros": terceros_sel}),
         **{f"grupo_{k.lower()}": f"{v['1']}, {v['2']}" for k, v in res_g.items()}
     }
-    res = requests.post(URL, data=payload)
-    
-    # Sincronización automática: Volvemos a pedir los datos para actualizar la tabla resumen en vivo
-    if res.status_code == 200:
-        res_actualizada = requests.get(URL, params={"nombre": st.session_state.usuario})
-        if res_actualizada.status_code == 200 and res_actualizada.json().get("status") == "success":
-            st.session_state.datos = res_actualizada.json().get("datos")
+    requests.post(URL, data=payload)
 
-# --- BOTONES DE ACCIÓN ---
 if not es_def:
-    col1, col2 = st.columns(2)
-    if col1.button("💾 Guardar Borrador"):
+    if st.button("💾 Guardar Todo"):
         enviar_datos("En Edición")
-        st.info("Borrador guardado y sincronizado con éxito.")
-        st.rerun()
-    if col2.button("🚀 ENVIAR DEFINITIVA"):
-        enviar_datos("Definitiva")
-        st.success("¡Quiniela enviada permanentemente!")
+        st.success("Guardado correctamente.")
         st.rerun()
