@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import pandas as pd
 import json
 
 st.set_page_config(page_title="Quiniela FIFA 2026", layout="wide")
@@ -21,7 +20,7 @@ if 'logueado' not in st.session_state:
 
 st.title("⚽ Quiniela Mundial 2026")
 
-# --- LOGIN / REGISTRO ---
+# --- LOGIN ---
 if not st.session_state.logueado:
     tab1, tab2 = st.tabs(["Ingresar", "Registrarse"])
     with tab1:
@@ -35,18 +34,16 @@ if not st.session_state.logueado:
                     st.session_state.update({'logueado': True, 'usuario': nombre, 'datos': datos, 'es_admin': res.json().get("es_admin", False), 'es_definitiva': (datos[16] == "Definitiva")})
                     st.rerun()
                 else: st.error("Contraseña incorrecta")
-            else: st.error("Usuario no encontrado")
     with tab2:
         new_n = st.text_input("Nombre de registro:", key="reg_n").strip().title()
         new_p = st.text_input("Contraseña de registro:", type="password", key="reg_p")
         if st.button("Registrarse"):
-            res = requests.post(URL, data={"nombre": new_n, "password": new_p, "estado": "En Edición"})
-            if res.status_code == 200: st.success("¡Registro exitoso!")
+            requests.post(URL, data={"nombre": new_n, "password": new_p, "estado": "En Edición"})
+            st.success("¡Registro exitoso!")
     st.stop()
 
-# --- ESTRUCTURA DE PESTAÑAS ---
+# --- ESTRUCTURA ---
 tab_grupos, tab_terceros, tab_final = st.tabs(["1. Grupos", "2. Mejores Terceros", "3. Fases Finales"])
-
 es_def = st.session_state.es_definitiva
 datos = st.session_state.datos
 
@@ -65,16 +62,16 @@ with tab_grupos:
 
 # --- PESTAÑA 2: MEJORES TERCEROS ---
 with tab_terceros:
-    st.write("Selecciona los 8 mejores terceros (excluyendo a los clasificados 1ero y 2do):")
-    terceros_posibles = []
+    st.write("Selecciona los 8 mejores terceros:")
+    candidatos = []
     for g, sel in res_g.items():
-        terceros_posibles.extend([e for e in GRUPOS[g] if e not in [sel['1'], sel['2']]])
+        candidatos.extend([e for e in GRUPOS[g] if e != sel['1'] and e != sel['2']])
     
-    terceros_sel = st.multiselect("Elige 8 equipos:", terceros_posibles, max_selections=8, disabled=es_def)
+    terceros_sel = st.multiselect("Elige 8 equipos:", options=candidatos, max_selections=8, disabled=es_def, key="t_sel")
 
-# --- PESTAÑA 3: FASES FINAL ---
+# --- PESTAÑA 3: FASES FINALES ---
 with tab_final:
-    st.info("Próximamente: Configuración de cruces para 16avos, Octavos, Cuartos, Semis y Final.")
+    st.info("Configuración de cruces en proceso...")
 
 # --- GUARDADO ---
 def enviar_datos(estado):
